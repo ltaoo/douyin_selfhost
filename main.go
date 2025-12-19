@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -46,6 +47,8 @@ type ResponseData struct {
 
 
 // Global variable to hold loaded JSON data
+var mediaDir string
+var staticDir string
 var jsonVideos []map[string]interface{}
 var jsonMusic []map[string]interface{}
 var jsonUsers map[string]interface{}
@@ -55,7 +58,7 @@ var jsonGoods []map[string]interface{}
 
 func loadJsonData() {
 	// Load users
-	usersBytes, err := os.ReadFile("public/data/users.json")
+	usersBytes, err := os.ReadFile(filepath.Join(staticDir, "data", "users.json"))
 	if err != nil {
 		log.Printf("Failed to read users.json: %v", err)
 	} else {
@@ -75,7 +78,7 @@ func loadJsonData() {
 	}
 
 	// Load posts (for /post/recommended)
-	postsBytes, err := os.ReadFile("public/data/posts.json")
+	postsBytes, err := os.ReadFile(filepath.Join(staticDir, "data", "posts.json"))
 	if err != nil {
 		log.Printf("Failed to read posts.json: %v", err)
 	} else {
@@ -87,7 +90,7 @@ func loadJsonData() {
 	}
 
 	// Load goods (for /shop/recommended)
-	goodsBytes, err := os.ReadFile("public/data/goods.json")
+	goodsBytes, err := os.ReadFile(filepath.Join(staticDir, "data", "goods.json"))
 	if err != nil {
 		log.Printf("Failed to read goods.json: %v", err)
 	} else {
@@ -126,7 +129,7 @@ func loadJsonData() {
 }
 
 func loadMusicData() {
-	musicBytes, err := os.ReadFile("public/data/music.json")
+	musicBytes, err := os.ReadFile(filepath.Join(staticDir, "data", "music.json"))
 	if err != nil {
 		log.Printf("Failed to read music.json: %v", err)
 	} else {
@@ -140,7 +143,6 @@ func loadMusicData() {
 
 func scanMediaVideos() ([]map[string]interface{}, error) {
 	var videos []map[string]interface{}
-	mediaDir := "media"
 	files, err := os.ReadDir(mediaDir)
 	if err != nil {
 		// If media dir doesn't exist, return empty list
@@ -416,7 +418,7 @@ func videoCommentsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Try to read json file first
-	path := fmt.Sprintf("public/data/comments/video_id_%s.json", id)
+	path := filepath.Join(staticDir, "data", "comments", fmt.Sprintf("video_id_%s.json", id))
 	data, err := os.ReadFile(path)
 	if err != nil {
 		// Fallback to check if .md exists (simulating fetch logic which handles .md)
@@ -425,7 +427,7 @@ func videoCommentsHandler(w http.ResponseWriter, r *http.Request) {
 		// The mock logic had a list of valid IDs and picked random if not found.
 		// For simplicity, let's try a fallback ID.
 		fallbackID := "7260749400622894336"
-		path = fmt.Sprintf("public/data/comments/video_id_%s.json", fallbackID)
+		path = filepath.Join(staticDir, "data", "comments", fmt.Sprintf("video_id_%s.json", fallbackID))
 		data, err = os.ReadFile(path)
 		if err != nil {
 			http.Error(w, "Comments not found", http.StatusNotFound)
@@ -539,7 +541,7 @@ func videoMyHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Load specific user video list
 	// In mock it was hardcoded to user-12345xiaolaohu.md
-	path := "public/data/user_video_list/user-12345xiaolaohu.json"
+	path := filepath.Join(staticDir, "data", "user_video_list", "user-12345xiaolaohu.json")
 	data, err := os.ReadFile(path)
 	var userVideos []map[string]interface{}
 
@@ -726,7 +728,7 @@ func userVideoListHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := r.URL.Query().Get("id")
-	path := fmt.Sprintf("public/data/user_video_list/user-%s.json", id)
+	path := filepath.Join(staticDir, "data", "user_video_list", fmt.Sprintf("user-%s.json", id))
 	data, err := os.ReadFile(path)
 	
 	if err != nil {
@@ -881,12 +883,24 @@ func shopRecommendedHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	var staticPath string
+	var indexPath string
+	var mediaDirFlag string
+
+	flag.StringVar(&staticPath, "static", "dist", "Path to static files directory")
+	flag.StringVar(&indexPath, "index", "index.html", "Path to index.html")
+	flag.StringVar(&mediaDirFlag, "media", "media", "Path to media directory")
+	flag.Parse()
+
+	mediaDir = mediaDirFlag
+	staticDir = staticPath
+
 	// Load JSON data on startup
 	loadJsonData()
 	loadMusicData()
 
 	// Serve media files
-	http.Handle("/media/", http.StripPrefix("/media/", http.FileServer(http.Dir("media"))))
+	http.Handle("/media/", http.StripPrefix("/media/", http.FileServer(http.Dir(mediaDir))))
 
 	// API endpoints
 	http.HandleFunc("/video/recommended", recommendedHandler)
@@ -909,7 +923,7 @@ func main() {
 	http.HandleFunc("/music", musicHandler)
 
 	// SPA handler for frontend
-	spa := spaHandler{staticPath: "dist", indexPath: "index.html"}
+	spa := spaHandler{staticPath: staticPath, indexPath: indexPath}
 	http.Handle("/", spa)
 
 	port := "8080"

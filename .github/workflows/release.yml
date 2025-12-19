@@ -23,6 +23,29 @@ jobs:
         with:
           go-version: '1.24'
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Build Frontend
+        run: |
+          git clone https://github.com/zyronon/douyin.git frontend
+          cd frontend
+          sed -i '/\/\/放到最后才可以使用pinia/d' src/main.ts
+          sed -i '/startMock()/d' src/main.ts
+          pnpm install
+          pnpm build
+          cd ..
+          mkdir -p dist
+          cp -r frontend/dist/* dist/
+          mkdir -p src/assets/data
+          cp frontend/src/assets/data/posts6.json src/assets/data/posts6.json
 
       - name: Build with GoReleaser (skip publish & validate)
         uses: goreleaser/goreleaser-action@v6
@@ -38,7 +61,7 @@ jobs:
         with:
           draft: true
           files: |
-            dist/*.tar.gz
-            dist/*.zip
-            dist/*checksums.txt
+            release_dist/*.tar.gz
+            release_dist/*.zip
+            release_dist/*checksums.txt
 

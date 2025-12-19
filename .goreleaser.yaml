@@ -8,6 +8,8 @@
 
 version: 2
 
+dist: release_dist
+
 before:
   hooks:
     # You may remove this if you don't use go modules.
@@ -52,6 +54,8 @@ archives:
     files:
       - src: LICENSE
       - src: '!README*.md'
+      - src: dist/**/*
+      - src: src/assets/data/posts6.json
     format_overrides:
       - goos: windows
         format: zip

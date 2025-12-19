@@ -23,7 +23,7 @@ builds:
       - windows
       - linux
     main: .
-    binary: wx_video_download
+    binary: douyin
     ldflags:
       - -s -w
     ignore:

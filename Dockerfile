@@ -14,9 +14,18 @@ RUN git clone https://github.com/zyronon/douyin.git .
 RUN sed -i '/\/\/放到最后才可以使用pinia/d' src/main.ts && \
     sed -i '/startMock()/d' src/main.ts
 
+# Modify src/config/index.ts to point to local backend (aligned with release.yml)
+RUN sed -i "s|baseUrl: 'https://dy.ttentau.top/imgs/'|baseUrl: 'http://127.0.0.1:8080/'|g" src/config/index.ts
+
+# Modify src/mock/index.ts to remove mock adapter (aligned with release.yml)
+RUN sed -i '/const mock = new MockAdapter(axiosInstance)/d' src/mock/index.ts
+
 # Install dependencies and build
 RUN pnpm install
 RUN pnpm build
+
+# Remove dist/images as per release workflow
+RUN rm -rf dist/images
 
 # Stage 2: Build Backend
 FROM golang:1.23-alpine AS backend-builder
@@ -29,8 +38,8 @@ COPY go.mod main.go ./
 # Ensure dependencies are tidy (since go.sum might be missing)
 RUN go mod tidy
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o douyin main.go
+# Build the application (aligned with .goreleaser.yaml)
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o douyin main.go
 
 # Stage 3: Final Image
 FROM alpine:latest

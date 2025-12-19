@@ -16,7 +16,26 @@
 - **Go 1.23+**：（如果不使用 Docker 并在本地运行后端）。
 - **Node.js & pnpm**：（如果需要手动构建前端）。
 
-## Docker 快速开始
+## 快速开始 (预编译包)
+
+你可以使用预编译版本快速启动，无需安装环境。支持 Windows, macOS, Linux 等平台。
+
+1. **下载**
+   在 GitHub Release 页面下载对应平台的压缩包。
+
+2. **解压与配置**
+   - 下载后解压到本地。
+   - 在解压后的 `douyin` 可执行文件同级目录下，**新建一个 `media` 文件夹**。
+   - 将你的视频文件放入这个 `media` 文件夹中。
+
+3. **启动**
+   - **Windows**: 双击 `douyin.exe` 启动服务。
+   - **macOS / Linux**: 在终端运行 `./douyin` 启动服务 (需先赋予执行权限: `chmod +x douyin`)。
+
+4. **播放**
+   浏览器打开 [http://localhost:8080](http://localhost:8080)，即可播放 `media` 文件夹里的视频。
+
+## Docker 快速开始(WIP)
 
 提供的 `Dockerfile` 会处理前端和后端的构建。
 

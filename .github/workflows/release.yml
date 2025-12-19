@@ -46,6 +46,7 @@ jobs:
           cp -r frontend/dist/* dist/
           mkdir -p src/assets/data
           cp frontend/src/assets/data/posts6.json src/assets/data/posts6.json
+          rm -rf dist/images
 
       - name: Build with GoReleaser (skip publish & validate)
         uses: goreleaser/goreleaser-action@v6

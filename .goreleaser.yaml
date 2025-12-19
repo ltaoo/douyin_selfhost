@@ -54,7 +54,6 @@ archives:
     files:
       - src: LICENSE
       - src: '!README*.md'
-      - src: dist/**/*
       - src: src/assets/data/posts6.json
     format_overrides:
       - goos: windows

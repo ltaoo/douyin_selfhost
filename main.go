@@ -217,34 +217,44 @@ func loadMusicData() {
 }
 
 func scanMediaVideos() ([]map[string]interface{}, error) {
-	var videos []map[string]interface{}
-	files, err := os.ReadDir(mediaDir)
-	if err != nil {
-		// If media dir doesn't exist, return empty list
-		if os.IsNotExist(err) {
-			return []map[string]interface{}{}, nil
-		}
-		return nil, err
-	}
+	videos := make([]map[string]interface{}, 0)
 
-	for _, file := range files {
-		if file.IsDir() {
-			continue
+	err := filepath.WalkDir(mediaDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			// If mediaDir itself doesn't exist, we'll catch it.
+			if os.IsNotExist(err) && path == mediaDir {
+				return nil // Treat as empty
+			}
+			return err
 		}
-		fileName := file.Name()
+		if d.IsDir() {
+			return nil
+		}
+
+		fileName := d.Name()
 		lowerName := strings.ToLower(fileName)
 		if !strings.HasSuffix(lowerName, ".mp4") && !strings.HasSuffix(lowerName, ".webm") && !strings.HasSuffix(lowerName, ".ogg") {
-			continue
+			return nil
+		}
+
+		// Get relative path
+		relPath, err := filepath.Rel(mediaDir, path)
+		if err != nil {
+			return nil
 		}
 
 		// Use filename as description, remove extension
 		desc := strings.TrimSuffix(fileName, filepath.Ext(fileName))
 
 		// Generate a fake ID
-		hash := md5.Sum([]byte(fileName))
+		hash := md5.Sum([]byte(relPath))
 		id := hex.EncodeToString(hash[:])
 
-		videoUrl := fmt.Sprintf("/media/%s", url.PathEscape(fileName))
+		parts := strings.Split(relPath, string(os.PathSeparator))
+		for i, part := range parts {
+			parts[i] = url.PathEscape(part)
+		}
+		videoUrl := fmt.Sprintf("/media/%s", strings.Join(parts, "/"))
 		// Use a placeholder for cover
 		coverUrl := "" // Could be a default image
 
@@ -338,7 +348,16 @@ func scanMediaVideos() ([]map[string]interface{}, error) {
 			},
 		}
 		videos = append(videos, video)
+		return nil
+	})
+
+	if err != nil {
+		if os.IsNotExist(err) {
+			return videos, nil
+		}
+		return nil, err
 	}
+
 	return videos, nil
 }
 

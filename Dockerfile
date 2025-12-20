@@ -28,12 +28,15 @@ RUN pnpm build
 RUN rm -rf dist/images
 
 # Stage 2: Build Backend
-FROM golang:1.23-alpine AS backend-builder
+FROM golang:1.24-alpine AS backend-builder
 
 WORKDIR /backend
 
 # Copy source code
 COPY go.mod main.go ./
+
+# Copy frontend build results so they can be embedded
+COPY --from=frontend-builder /frontend/dist ./dist
 
 # Ensure dependencies are tidy (since go.sum might be missing)
 RUN go mod tidy

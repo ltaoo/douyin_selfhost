@@ -39,21 +39,19 @@
 
 提供的 `Dockerfile` 会处理前端和后端的构建。
 
-1. **构建镜像**
+1. **拉取镜像**
 
    ```bash
-   docker build -t douyin-server .
+   docker pull ghcr.io/ltaoo/douyin_selfhost:latest
    ```
 
 2. **运行容器**
-
-   将 `/path/to/your/videos` 替换为你本地视频目录的绝对路径。
 
    ```bash
    docker run -d \
      -p 8080:8080 \
      -v /path/to/your/videos:/app/media \
-     douyin-server
+     ghcr.io/ltaoo/douyin_selfhost:latest
    ```
 
 3. **访问应用**
@@ -66,16 +64,36 @@
 
 ### 1. 构建前端
 
-克隆前端仓库并进行构建：
+克隆前端仓库：
 
 ```bash
 git clone https://github.com/zyronon/douyin.git
 cd douyin
+```
+
+**关键：在构建前，必须修改以下代码以适配本地后端：**
+
+1. **修改 `src/main.ts`**
+   删除或注释掉 `startMock()` 调用，以禁用前端自带的模拟数据。
+
+2. **修改 `src/config/index.ts`**
+   将 `baseUrl` 修改为本地后端地址：
+   ```typescript
+   // 原代码: baseUrl: 'https://dy.ttentau.top/imgs/'
+   baseUrl: 'http://localhost:8080/'
+   ```
+
+3. **修改 `src/mock/index.ts`**
+   删除或注释掉 `const mock = new MockAdapter(axiosInstance)`，防止请求被前端拦截。
+
+完成修改后，执行构建：
+
+```bash
 pnpm install
 pnpm build
 ```
 
-将生成的 `dist` 文件夹复制到本 `douyin_server` 项目的根目录下。
+构建完成后，**建议删除 `dist/images` 目录**（如果存在），然后将生成的 `dist` 文件夹复制到本 `douyin_server` 项目的根目录下。
 
 ### 2. 准备数据文件
 

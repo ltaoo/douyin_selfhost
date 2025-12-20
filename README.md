@@ -47,6 +47,8 @@
 
 2. **运行容器**
 
+   > 将下面的 `/path/to/your/videos` 替换为你实际的视频文件目录。
+
    ```bash
    docker run -d \
      -p 8080:8080 \

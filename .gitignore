@@ -1,4 +1,10 @@
 .DS_Store
-dist
 
-douyin
+# Build artifacts
+dist/
+build/
+douyin_selfhost*
+src/
+
+# Auto-generated config
+config.yaml

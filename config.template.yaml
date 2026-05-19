@@ -1,0 +1,6 @@
+host: "127.0.0.1"
+port: "8080"
+static: "dist"
+index: "index.html"
+media: "media"
+random: false

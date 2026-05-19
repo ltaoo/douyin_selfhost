@@ -11,13 +11,20 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+	"time"
+
+	"github.com/spf13/viper"
 )
+
+const Version = "0.5.0"
 
 type spaHandler struct {
 	fileSystem fs.FS
@@ -96,10 +103,11 @@ type ResponseData struct {
 	List  interface{} `json:"list"`
 }
 
-
 // Global variable to hold loaded JSON data
 var mediaDir string
 var staticDir string
+var randomEnabled bool
+
 //go:embed dist/*
 var embedDist embed.FS
 var fileSystem fs.FS
@@ -111,7 +119,16 @@ var jsonUsersList []map[string]interface{}
 var jsonPosts []map[string]interface{}
 var jsonGoods []map[string]interface{}
 
-var avatar_dataurl = "data:image/png;base64,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"
+var avatar_dataurl = "data:image/png;base64,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"
+
+var (
+	mediaCacheMutex   sync.RWMutex
+	mediaCacheVideos  []map[string]interface{}
+	mediaCacheExpire  time.Time
+	currentRandomSeed int64
+)
+
+const mediaCacheTtl = 3 * time.Minute
 
 func loadJsonData() {
 	// Load users
@@ -176,7 +193,7 @@ func loadJsonData() {
 	// But let's assume it should also be in the static FS if we want it to work in prod.
 	// However, the original code had: videosBytes, err := os.ReadFile("src/assets/data/posts6.json")
 	// This path "src/assets/..." looks like source code path, not dist path.
-	// If the user hasn't moved this to dist, it might fail. 
+	// If the user hasn't moved this to dist, it might fail.
 	// But let's check dist content. dist/data/videos.json exists.
 	// Maybe we should try to load from dist/data/videos.json instead of src/...
 	// Let's try to read from "data/videos.json" first, if that's what is intended.
@@ -187,13 +204,13 @@ func loadJsonData() {
 	// The LS output shows `dist/data/videos.json`. It's likely the same content.
 	// I'll try to use `data/videos.json` from fileSystem as a better default, but fallback to original if needed?
 	// Actually, let's stick to what's likely correct for a "dist" based deployment.
-	
+
 	videosBytes, err := fs.ReadFile(fileSystem, "data/videos.json")
 	if err != nil {
 		log.Printf("Failed to read data/videos.json from fs: %v. Trying src path...", err)
 		videosBytes, err = os.ReadFile("src/assets/data/posts6.json")
 	}
-	
+
 	if err != nil {
 		log.Printf("Failed to read videos json: %v", err)
 	} else {
@@ -233,6 +250,14 @@ func loadMusicData() {
 }
 
 func scanMediaVideos() ([]map[string]interface{}, error) {
+	// Check cache
+	mediaCacheMutex.RLock()
+	if time.Now().Before(mediaCacheExpire) && mediaCacheVideos != nil {
+		defer mediaCacheMutex.RUnlock()
+		return mediaCacheVideos, nil
+	}
+	mediaCacheMutex.RUnlock()
+
 	videos := make([]map[string]interface{}, 0)
 
 	err := filepath.WalkDir(mediaDir, func(path string, d fs.DirEntry, err error) error {
@@ -290,25 +315,25 @@ func scanMediaVideos() ([]map[string]interface{}, error) {
 				"title":  "Original Sound",
 				"author": "Local Artist",
 				"cover_medium": map[string]interface{}{
-					"url_list": []string{""},
+					"url_list": []string{"/assets/18-C60ghDhY.jpg"},
 				},
 				"cover_thumb": map[string]interface{}{
-					"url_list": []string{""},
+					"url_list": []string{"/assets/18-C60ghDhY.jpg"},
 				},
 				"cover_large": map[string]interface{}{
-					"url_list": []string{""},
+					"url_list": []string{"/assets/18-C60ghDhY.jpg"},
 				},
 				"play_url": map[string]interface{}{
-					"uri":     "music_uri",
+					"uri":      "music_uri",
 					"url_list": []string{""},
 				},
 			},
 			"video": map[string]interface{}{
 				"play_addr": map[string]interface{}{
-					"uri":     id,
+					"uri":      id,
 					"url_list": []string{videoUrl},
-					"width":   720,
-					"height":  1280,
+					"width":    720,
+					"height":   1280,
 				},
 				"cover": map[string]interface{}{
 					"url_list": []string{coverUrl},
@@ -402,6 +427,11 @@ func scanMediaVideos() ([]map[string]interface{}, error) {
 		return vi > vj
 	})
 
+	mediaCacheMutex.Lock()
+	mediaCacheVideos = videos
+	mediaCacheExpire = time.Now().Add(mediaCacheTtl)
+	mediaCacheMutex.Unlock()
+
 	return videos, nil
 }
 
@@ -416,7 +446,7 @@ func recommendedHandler(w http.ResponseWriter, r *http.Request) {
 	// Prefer JSON data if available
 	var pagedVideos interface{}
 	var total int
-	
+
 	startStr := r.URL.Query().Get("start")
 	pageSizeStr := r.URL.Query().Get("pageSize")
 	start := 0
@@ -433,6 +463,18 @@ func recommendedHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if randomEnabled {
+		if start == 0 {
+			currentRandomSeed = time.Now().UnixNano()
+		}
+		r := rand.New(rand.NewSource(currentRandomSeed))
+		shuffled := make([]map[string]interface{}, len(videos))
+		copy(shuffled, videos)
+		r.Shuffle(len(shuffled), func(i, j int) {
+			shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+		})
+		videos = shuffled
 	}
 	total = len(videos)
 	end := start + pageSize
@@ -454,7 +496,7 @@ func recommendedHandler(w http.ResponseWriter, r *http.Request) {
 	// 	}
 	// 	pagedVideos = jsonVideos[start:end]
 	// } else {
-		
+
 	// }
 
 	resp := ResponseData{
@@ -462,7 +504,7 @@ func recommendedHandler(w http.ResponseWriter, r *http.Request) {
 		List:  pagedVideos,
 	}
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	finalResp := map[string]interface{}{
 		"code": 200,
 		"data": resp,
@@ -484,7 +526,7 @@ func musicHandler(w http.ResponseWriter, r *http.Request) {
 		List:  jsonMusic,
 	}
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	finalResp := map[string]interface{}{
 		"code": 200,
 		"data": resp,
@@ -532,7 +574,7 @@ func videoLongRecommendedHandler(w http.ResponseWriter, r *http.Request) {
 		List:  list,
 	}
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	finalResp := map[string]interface{}{
 		"code": 200,
 		"data": resp,
@@ -613,7 +655,7 @@ func videoPrivateHandler(w http.ResponseWriter, r *http.Request) {
 		List:  list,
 	}
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	finalResp := map[string]interface{}{
 		"code": 200,
 		"data": resp,
@@ -650,7 +692,7 @@ func videoLikeHandler(w http.ResponseWriter, r *http.Request) {
 		List:  list,
 	}
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	finalResp := map[string]interface{}{
 		"code": 200,
 		"data": resp,
@@ -868,7 +910,7 @@ func userVideoListHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	filePath := fmt.Sprintf("data/user_video_list/user-%s.json", id)
 	data, err := fs.ReadFile(fileSystem, filePath)
-	
+
 	if err != nil {
 		finalResp := map[string]interface{}{
 			"code": 500,
@@ -881,7 +923,7 @@ func userVideoListHandler(w http.ResponseWriter, r *http.Request) {
 
 	var videos interface{}
 	json.Unmarshal(data, &videos)
-	
+
 	finalResp := map[string]interface{}{
 		"code": 200,
 		"data": videos,
@@ -949,11 +991,11 @@ func postRecommendedHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Sscanf(ps, "%d", &pageSize)
 	}
 	offset := pageNo * pageSize
-	
+
 	total := len(jsonPosts)
 	var list interface{}
 	end := offset + pageSize
-	
+
 	// Mock logic: allRecommendPosts.slice(0, 1000).slice(offset, limit)
 	// We just slice directly.
 	if offset >= total {
@@ -999,7 +1041,7 @@ func shopRecommendedHandler(w http.ResponseWriter, r *http.Request) {
 	total := len(jsonGoods)
 	var list interface{}
 	end := offset + pageSize
-	
+
 	if offset >= total {
 		list = []interface{}{}
 	} else {
@@ -1115,30 +1157,94 @@ func videoListHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(finalResp)
 }
 func main() {
+	log.Printf("douyin_selfhost v%s starting...", Version)
 	var staticPath string
 	var indexPath string
 	var mediaDirFlag string
 	var hostFlag string
 	var portFlag string
+	var configFile string
+	var randomFlag bool
 
+	flag.StringVar(&configFile, "config", "", "Path to config file")
+	flag.StringVar(&configFile, "c", "", "Path to config file (shorthand)")
 	flag.StringVar(&staticPath, "static", "dist", "Path to static files directory")
 	flag.StringVar(&indexPath, "index", "index.html", "Path to index.html")
 	flag.StringVar(&mediaDirFlag, "media", "media", "Path to media directory")
 	flag.StringVar(&hostFlag, "host", "127.0.0.1", "Host to bind")
 	flag.StringVar(&portFlag, "port", "8080", "Port to listen")
+	flag.BoolVar(&randomFlag, "random", false, "Randomly shuffle scanned media videos")
 	flag.Parse()
 
-	mediaDir = mediaDirFlag
-	staticDir = staticPath
-	host := hostFlag
-	port := portFlag
+	// Set up viper for config file support
+	v := viper.New()
+	v.SetConfigType("yaml")
+
+	// Auto-discover config.yaml from executable dir and working dir
+	if configFile != "" {
+		v.SetConfigFile(configFile)
+	} else {
+		v.SetConfigName("config")
+		v.AddConfigPath(".")
+		if exe, err := os.Executable(); err == nil {
+			v.AddConfigPath(filepath.Dir(exe))
+		}
+	}
+
+	// Set defaults
+	v.SetDefault("host", "127.0.0.1")
+	v.SetDefault("port", "8080")
+	v.SetDefault("static", "dist")
+	v.SetDefault("index", "index.html")
+	v.SetDefault("media", "media")
+	v.SetDefault("random", false)
+
+	// Read config file
+	if err := v.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			log.Printf("Warning: failed to read config file: %v", err)
+		}
+	} else {
+		log.Printf("Using config file: %s", v.ConfigFileUsed())
+	}
+
+	// Apply CLI flag overrides: if a flag was explicitly set, override the config value
+	cliFlags := make(map[string]bool)
+	flag.Visit(func(f *flag.Flag) {
+		cliFlags[f.Name] = true
+	})
+	if cliFlags["host"] {
+		v.Set("host", hostFlag)
+	}
+	if cliFlags["port"] {
+		v.Set("port", portFlag)
+	}
+	if cliFlags["static"] {
+		v.Set("static", staticPath)
+	}
+	if cliFlags["index"] {
+		v.Set("index", indexPath)
+	}
+	if cliFlags["media"] {
+		v.Set("media", mediaDirFlag)
+	}
+	if cliFlags["random"] {
+		v.Set("random", randomFlag)
+	}
+
+	// Use viper values
+	mediaDir = v.GetString("media")
+	staticDir = v.GetString("static")
+	randomEnabled = v.GetBool("random")
+	host := v.GetString("host")
+	port := v.GetString("port")
 
 	// Initialize fileSystem
-	if _, err := os.Stat(staticPath); err == nil {
-		log.Printf("Using local static directory: %s", staticPath)
-		fileSystem = os.DirFS(staticPath)
+	if _, err := os.Stat(staticDir); err == nil {
+		log.Printf("Using local static directory: %s", staticDir)
+		fileSystem = os.DirFS(staticDir)
 	} else {
-		log.Printf("Local directory %s not found, using embedded resources", staticPath)
+		log.Printf("Local directory %s not found, using embedded resources", staticDir)
 		var err error
 		fileSystem, err = fs.Sub(embedDist, "dist")
 		if err != nil {
@@ -1162,20 +1268,20 @@ func main() {
 	http.HandleFunc("/video/my", videoMyHandler)
 	http.HandleFunc("/video/history", videoHistoryHandler)
 	http.HandleFunc("/api/video/list", videoListHandler)
-	
+
 	http.HandleFunc("/user/panel", userPanelHandler)
 	http.HandleFunc("/user/collect", userCollectHandler)
 	http.HandleFunc("/user/video_list", userVideoListHandler)
 	http.HandleFunc("/user/friends", userFriendsHandler)
-	
+
 	http.HandleFunc("/historyOther", historyOtherHandler)
 	http.HandleFunc("/post/recommended", postRecommendedHandler)
 	http.HandleFunc("/shop/recommended", shopRecommendedHandler)
-	
+
 	http.HandleFunc("/music", musicHandler)
 
 	// SPA handler for frontend
-	spa := spaHandler{fileSystem: fileSystem, indexPath: indexPath}
+	spa := spaHandler{fileSystem: fileSystem, indexPath: v.GetString("index")}
 	http.Handle("/", spa)
 
 	log.Printf("Serving SPA on http://%s:%s ...", host, port)
